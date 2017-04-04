@@ -13,14 +13,24 @@
 TRANSLATIONSREPO=https://github.com/openemr/translations_development_openemr.git
 
 # PATH VARIABLES
-WEB=/var/www
+if [ -d /var/www/html ]; then
+ WEB=/var/www/html
+ htmlDirApache=true;
+else
+ WEB=/var/www
+ htmlDirApache=false;
+fi
 OPENEMR=$WEB/openemr
 LOG=$WEB/log/logSetup.txt
 GITMAIN=/home/openemr/git
 # GIT=$GITMAIN/openemr // Need to instead set this below depending on OPENEMRREPONAME below
 GITDEMOFARM=$GITMAIN/demo_farm_openemr
 GITDEMOFARMMAP=$GITDEMOFARM/ip_map_branch.txt
-OPENEMRAPACHECONF=$GITDEMOFARM/openemr.conf
+if $htmlDirApache ; then
+ OPENEMRAPACHECONF=$GITDEMOFARM/openemr-html.conf
+else
+ OPENEMRAPACHECONF=$GITDEMOFARM/openemr.conf
+fi
 GITTRANS=$GITMAIN/translations_development_openemr
 TRANSSERVEDIR=$WEB/translations
 FILESSERVEDIR=$WEB/files
@@ -133,6 +143,11 @@ echo -n "external link is "
 echo "$EXTERNALLINK"
 echo -n "external link is " >> $LOG
 echo "$EXTERNALLINK" >> $LOG
+mrp=`cat $GITDEMOFARMMAP | grep "$IPADDRESS" | tr -d '\n' | cut -f 12`
+echo -n "mysql p is "
+echo "$mrp"
+echo -n "mysql p is " >> $LOG
+echo "$mrp" >> $LOG
 
 # SET OPTIONS
 # set if serve development translation set
@@ -177,9 +192,15 @@ if [ "$wp" == "0"  ]; then
 else
  portalsDemo=true;
 fi
+# set the mysql r pass string if needed
+if [ -z "$mrp" ]; then
+ rpassparam=
+else
+ rpassparam="-p$mrp"
+fi
 
 # COLLECT and output demo description
-desc=`cat $GITDEMOFARMMAP | grep "$IPADDRESS" | tr -d '\n' | cut -f 12`
+desc=`cat $GITDEMOFARMMAP | grep "$IPADDRESS" | tr -d '\n' | cut -f 13`
 echo -n "Demo description: "
 echo "$desc"
 echo -n "Demo description: " >> $LOG
@@ -221,7 +242,7 @@ rsync --recursive --exclude .git $GIT/* $OPENEMR/
 #first secure things to stop hackers from placing .htaccess files and secure patient directories
 echo "Setting OpenEMR configuration script"
 echo "Setting OpenEMR configuration script" >> $LOG
-cp $OPENEMRAPACHECONF /etc/apache2/sites-available/
+cp $OPENEMRAPACHECONF /etc/apache2/sites-available/openemr.conf
 a2ensite openemr.conf >> $LOG
 /etc/init.d/apache2 start >> $LOG
 
@@ -239,6 +260,7 @@ chown -R www-data:www-data $OPENEMR/sites/default/letter_templates
 chown -R www-data:www-data $OPENEMR/interface/main/calendar/modules/PostCalendar/pntemplates/cache
 chown -R www-data:www-data $OPENEMR/interface/main/calendar/modules/PostCalendar/pntemplates/compiled
 chown -R www-data:www-data $OPENEMR/gacl/admin/templates_c
+
 if [ -f $OPENEMR/interface/modules/zend_modules/config/application.config.php ] ; then
  # This is specifically for Zend code that is currently under development, so it works on the demos.
  chown www-data:www-data $OPENEMR/interface/modules/zend_modules/config/application.config.php
@@ -252,11 +274,19 @@ sed -e 's@^exit;@ @' <$INST >$INSTTEMP
 if $translationsDevelopment ; then
  echo "Using online development translation set"
  echo "Using online development translation set" >> $LOG
- php -f $INSTTEMP development_translations=yes >> $LOG
+ if [ -z "$mrp" ] ; then
+  php -f $INSTTEMP development_translations=yes >> $LOG
+ else
+  php -f $INSTTEMP development_translations=yes rootpass=$mrp >> $LOG
+ fi
 else
  echo "Using included translation set"
  echo "Using included translation set" >> $LOG
- php -f $INSTTEMP >> $LOG
+ if [ -z "$mrp" ] ; then
+  php -f $INSTTEMP >> $LOG
+ else
+  php -f $INSTTEMP rootpass=$mrp >> $LOG
+ fi
 fi
 rm -f $INSTTEMP
 
@@ -281,7 +311,7 @@ if $demoData; then
  # First, check to ensure the file exists
  if [ -f "$GITDEMOFARM/pieces/$dd" ]; then
   # Now insert the data
-  mysql -u root openemr < "$GITDEMOFARM/pieces/$dd"
+  mysql -u root $rpassparam openemr < "$GITDEMOFARM/pieces/$dd"
   echo "Completed inserting demo data from $dd"
   echo "Completed inserting demo data from $dd" >> $LOG
  else
@@ -294,6 +324,10 @@ fi
 chmod 644 $OPENEMR/sites/default/sqlconf.php
 echo "Done configuring OpenEMR"
 echo "Done configuring OpenEMR" >> $LOG
+
+# Set up to allow demo and testing of hl7 labs feature
+mkdir $OPENEMR/sites/default/procedure_results
+chown -R www-data:www-data $OPENEMR/sites/default/procedure_results
 
 #Security stuff
 #1. remove the library/openflashchart/php-ofc-library/ofc_upload_image.php file if it exists
@@ -387,16 +421,16 @@ if $portalsDemo; then
  sed -i 's/demo.open-emr.org:2104/'"$EXTERNALLINK"'/g' "$GITDEMOWORDPRESSDEMOSQL"
 
  # Install the openemr sql stuff for portals
- mysql -u root openemr < "$GITDEMOFARM/pieces/portal_onsite_and_wordpress.sql"  
+ mysql -u root $rpassparam openemr < "$GITDEMOFARM/pieces/portal_onsite_and_wordpress.sql"  
 
  # Install wordpress file stuff
  mkdir -p $WORDPRESS
  cp -r $GITDEMOWORDPRESSDEMOWEB/* $WORDPRESS/
 
  # Install wordpress database stuff
- mysqladmin -u root create wordpress
- mysql -u root --execute "GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'localhost' IDENTIFIED BY 'wordpress'" wordpress
- mysql -u root wordpress < "$GITDEMOWORDPRESSDEMOSQL"
+ mysqladmin -u root $rpassparam create wordpress
+ mysql -u root $rpassparam --execute "GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'localhost' IDENTIFIED BY 'wordpress'" wordpress
+ mysql -u root $rpassparam wordpress < "$GITDEMOWORDPRESSDEMOSQL"
 
  # Install Postfix to allow email registration on wordpress patient portal demo
  apt-get update >> $LOG

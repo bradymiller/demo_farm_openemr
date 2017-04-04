@@ -1,4 +1,3 @@
-
 The repo holds the mechanism for an OpenEMR demo farm.
 
 How do I set one of the "UP FOR GRABS" OpenEMR demos?
@@ -57,4 +56,9 @@ How to grow your own OpenEMR demo farm
 2. Configure ip_map_branch.txt
 3. Set up the pre-trigger appliance, as above (or download it when available)
 4. Trigger the appliance, as above. In the /etc/rc.local, place link to your custom demo_farm_openemr repo.
+
+
+LICENSE
+--------------------------------------
+GNU GENERAL PUBLIC LICENSE
 
