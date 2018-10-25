@@ -788,7 +788,7 @@ echo "$timeEnd" >> $LOG
 
 if $passResetAuto; then
  # run the auto reset password script every minute
- watch -n 60 "${PASSWORDRESETSCRIPT} ${FINALWEB}" &>/dev/null &
+ watch -n 60 "php -f ${PASSWORDRESETSCRIPT} ${FINALWEB}" &>/dev/null &
 fi
 
 if ! $lightReset; then
