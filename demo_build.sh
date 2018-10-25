@@ -297,9 +297,9 @@ do
  echo -n "funStuff option is " >> $LOG
  echo "$funStuff" >> $LOG
  passReset=`cat $GITDEMOFARMMAP | grep "$IPADDRESS" | tr -d '\n' | cut -f 16`
- echo -n "funStuff option is "
+ echo -n "passReset option is "
  echo "$passReset"
- echo -n "funStuff option is " >> $LOG
+ echo -n "passReset option is " >> $LOG
  echo "$passReset" >> $LOG
 
  # SET OPTIONS
